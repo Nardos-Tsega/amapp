@@ -3,8 +3,8 @@ import helmet from "helmet";
 import cors from "cors";
 import bodyParser from "body-parser";
 import compress from "compression";
-import routes from "./config/routes";
-import * as env from "./config/env";
+import routes from "./config/routes.js";
+import * as env from "./config/env.js";
 
 const app = express();
 
