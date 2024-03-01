@@ -7,3 +7,4 @@ const value = process.env;
 
 export const port = value.PORT;
 export const nodeEnv = value.NODE_ENV;
+export const dbString = value.DB_STRING;
