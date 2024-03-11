@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { usersStatus } from "../constants.js";
 import * as env from "../../config/env.js";
+import bcrypt from "bcryptjs";
 
 const usersSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
@@ -10,6 +11,17 @@ const usersSchema = new mongoose.Schema({
   profileImage: { type: String },
   username: { type: String, required: true },
   country: { type: String, required: true },
+  refreshToken: { type: String, required: true },
+});
+
+usersSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    return next();
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 // let sendEmail = false;
