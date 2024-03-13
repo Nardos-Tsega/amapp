@@ -30,3 +30,7 @@ export const loginValidator = [
     .isLength({ min: 8 })
     .withMessage("Password length must be atleast 8 characters"),
 ];
+
+export const paramIdValidator = [
+  check("id").exists().withMessage("ID is required").isNumeric(),
+];

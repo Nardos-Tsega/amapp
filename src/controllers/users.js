@@ -9,27 +9,22 @@ export const createUserController = async (req, res, next) => {
   const errorsAfterValidation = validationResult(req);
 
   if (!errorsAfterValidation.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       code: 400,
       errors: errorsAfterValidation,
     });
+    return;
   }
 
   try {
-    const {
-      firstName,
-      lastName,
-      email,
-      username,
-      password,
-      profileImage,
-      country,
-    } = req.body;
+    const { firstName, lastName, email, username, password, country } =
+      req.body;
 
-    const user = User.findOne({ email });
+    const user = await User.findOne({ email: email });
 
     if (user) {
       generateServerErrorCode(res, 400, "Email already in use");
+      return;
     }
 
     const token = jwt.sign({ email }, env.jwtKey, {
@@ -40,32 +35,29 @@ export const createUserController = async (req, res, next) => {
       expiresIn: 100000000,
     });
 
-    if (!user.email) {
-      const newUser = new User({
-        firstName,
-        lastName,
-        email,
-        username,
-        password,
-        profileImage,
-        country,
-        refreshToken,
-      });
+    let profileImage = "";
 
-      const user = await newUser.save();
-
-      const userToReturn = { ...user.toJSON(), ...{ token } };
-      delete userToReturn.password;
-      res.status(200).json(userToReturn);
-    } else {
-      generateServerErrorCode(
-        res,
-        403,
-        "register email error",
-        "USER ALREADY EXISTS",
-        "email"
-      );
+    if (req.file) {
+      profileImage = req.file.filename;
     }
+
+    const newUser = new User({
+      firstName,
+      lastName,
+      email,
+      username,
+      password,
+      profileImage,
+      country,
+      refreshToken,
+    });
+
+    const savedUser = await newUser.save();
+
+    const userToReturn = { ...savedUser.toJSON(), ...{ token } };
+    delete userToReturn.password;
+    res.status(200).json(userToReturn);
+    return;
   } catch (error) {
     generateServerErrorCode(res, 500, error, "SOMETHING WENT WRONG");
     next(error);
@@ -75,10 +67,11 @@ export const createUserController = async (req, res, next) => {
 export const loginUser = async (req, res, next) => {
   const errorsAfterValidation = validationResult(req);
   if (!errorsAfterValidation.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       code: 400,
       error: errorsAfterValidation.mapped(),
     });
+    return;
   }
 
   const { email, password } = req.body;
@@ -112,7 +105,6 @@ export const refreshToken = async (req, res, next) => {
 
     const decoded = jwt.verify(refreshToken, env.jwtKey);
     const user = await User.findOne({ email: decoded.email });
-    console.log(user, "user");
     if (!user) {
       generateServerErrorCode(res, 401, "Invalid refresh token");
     }
@@ -120,11 +112,101 @@ export const refreshToken = async (req, res, next) => {
     const newAccessToken = jwt.sign({ email: decoded.email }, env.jwtKey, {
       expiresIn: 100000,
     });
-    // res.status(200).json({ ...user.toJSON() }, { ...newAccessToken });
     const userToReturn = { ...user.toJSON(), ...{ token: newAccessToken } };
     delete userToReturn.password;
     res.status(200).json(userToReturn);
   } catch (error) {
     generateServerErrorCode(res, 401, "Invalid refresh token");
+    next(error);
+  }
+};
+
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find();
+
+    console.log(users, "users");
+
+    if (!users) {
+      generateServerErrorCode(res, 404, "no users found", "no users found");
+      return;
+    }
+    res.status(200).json(users);
+  } catch (error) {
+    generateServerErrorCode(res, 500, error, "SOMETHING WENT WRONG");
+    next(error);
+  }
+};
+
+export const getUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    let user;
+    if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+      user = await User.findById(userId);
+    } else {
+      generateServerErrorCode(res, 404, "Invalid user id", "User not found");
+      return;
+    }
+
+    if (!user) {
+      generateServerErrorCode(res, 404, "User not found", "User not found");
+      return;
+    }
+    const userToReturn = { ...user.toJSON() };
+    delete userToReturn.password;
+    delete userToReturn.refreshToken;
+    res.status(200).json(userToReturn);
+  } catch (error) {
+    generateServerErrorCode(res, 500, error, "SOMETHING WENT WRONG");
+    next(error);
+  }
+};
+export const deleteUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    let user;
+    if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+      user = await User.findByIdAndDelete(userId);
+    } else {
+      generateServerErrorCode(res, 404, "Invalid user id", "User not found");
+      return;
+    }
+
+    if (!user) {
+      generateServerErrorCode(res, 404, "User not found", "User not found");
+      return;
+    }
+
+    const userToReturn = {
+      ...user.toJSON(),
+      ...{ message: "User deleted successfully" },
+    };
+    res.status(200).json(userToReturn);
+  } catch (error) {
+    generateServerErrorCode(res, 500, error, "SOMETHING WENT WRONG");
+    next(error);
+  }
+};
+
+export const editUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const updatedData = req.body;
+    const user = await User.findByIdAndUpdate(userId, updatedData, {
+      new: true,
+    });
+
+    if (!user) {
+      generateServerErrorCode(res, 404, "User not found", "User not found");
+      return;
+    }
+    const userToReturn = { ...user.toJSON() };
+    delete userToReturn.password;
+    res.status(200).json(userToReturn);
+    return;
+  } catch (error) {
+    generateServerErrorCode(res, 500, error, "SOMETHING WENT WRONG");
+    next(error);
   }
 };
